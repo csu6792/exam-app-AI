@@ -583,21 +583,23 @@
     <div class="bottom-nav" id="action-bar-result"><button class="btn-action btn-secondary" onclick="location.reload()"><span>開始新測驗</span></button></div>
 
     <nav class="ios-tab-bar">
-        <div class="tab-item active" id="tab-btn-reading" onclick="switchGlobalTab('reading')">
-            <svg class="tab-icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
-            <span class="tab-label">智慧書架</span>
-        </div>
-        <div class="tab-item" id="tab-btn-quiz" onclick="switchGlobalTab('quiz')">
-            <svg class="tab-icon" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
-            <span class="tab-label">模擬測驗</span>
-        </div>
-		<div class="tab-item" id="tab-btn-ai-quiz" onclick="switchGlobalTab('ai-quiz')">
-            <svg class="tab-icon" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7v5h-2v-5a5 5 0 0 0-5-5h-1v2.27a2 2 0 1 1-2 0V7H9a5 5 0 0 0-5 5v5H2v-5a7 7 0 0 1 7-7h1V5.73A2 2 0 0 1 12 2z"/>
-            </svg>
-            <span class="tab-label">AI測驗</span>
-        </div>
-    </nav>
+		<div class="tab-item active" id="tab-btn-reading" onclick="switchGlobalTab('reading')">
+			<svg class="tab-icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+			<span class="tab-label">智慧書架</span>
+		</div>
+		<div class="tab-item" id="tab-btn-quiz" onclick="switchGlobalTab('quiz')">
+			<svg class="tab-icon" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+			<span class="tab-label">模擬測驗</span>
+		</div>
+		<div class="tab-item" id="tab-btn-ai-quiz" onclick="switchGlobalTab('ai-quiz')" style="position: relative;">
+			<span style="position: absolute; top: 4px; right: 14px; background: var(--status-error, #ff3b30); color: white; font-size: 10px; font-weight: bold; padding: 1px 4px; border-radius: 4px; line-height: 1; transform: scale(0.75); transform-origin: top right; letter-spacing: 0.5px; box-shadow: 0 1px 3px rgba(0,0,0,0.15);">BETA</span>
+			
+			<svg class="tab-icon" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7v5h-2v-5a5 5 0 0 0-5-5h-1v2.27a2 2 0 1 1-2 0V7H9a5 5 0 0 0-5 5v5H2v-5a7 7 0 0 1 7-7h1V5.73A2 2 0 0 1 12 2z"/>
+			</svg>
+			<span class="tab-label">AI測驗</span>
+		</div>
+	</nav>
 
     <!-- PDF 檢視器 (支援雙指縮放) -->
     <div id="ebook-reader-window" class="ebook-window">
