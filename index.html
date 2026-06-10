@@ -1637,7 +1637,8 @@
                     let batchCount = 1;
                     while (aiQuizData.length < totalNeeded) {
                         loadingStatus.innerText = `正在生成第 ${batchCount} 批考題...`;
-                        const res = await fetch('http://127.0.0.1:8080/api/chat', {
+                        //const res = await fetch('http://127.0.0.1:8080/api/chat', {
+						const res = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
                             body: JSON.stringify({
