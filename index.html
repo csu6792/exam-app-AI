@@ -1,0 +1,1784 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>閱讀測驗系統</title>
+    <link rel="manifest" href="manifest.json">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <style>
+        /* iOS 官方系統色彩規範 */
+        :root {
+            --ios-bg: #f2f2f7;                 
+            --ios-surface: #ffffff;            
+            --ios-sub-bg: #fafafa;
+            --text-primary: #000000;           
+            --text-secondary: #3c3c4399;       
+            --text-muted: #3c3c434d;           
+            --brand-primary: #007aff;          
+            --brand-hover: #0062cc;
+            --brand-inactive: #8e8e93;         
+            --status-success: #34c759;         
+            --status-success-bg: #f2fbf4;
+            --status-error: #ff3b30;           
+            --status-error-bg: #fff5f5;
+            --status-warning: #ff9500;         
+            --status-warning-bg: #fff9f0;
+            --border-light: #3c3c432e;
+            --transition-ios: all 0.28s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Icons", "Helvetica Neue", Helvetica, Arial, sans-serif; background-color: var(--ios-bg); color: var(--text-primary); height: 100vh; display: flex; flex-direction: column; overflow: hidden; -webkit-font-smoothing: antialiased; }
+
+        header { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 0.5px solid var(--border-light); z-index: 100; flex-shrink: 0; position: relative; }
+        .header-title { font-size: 17px; font-weight: 600; letter-spacing: -0.4px; position: absolute; left: 50%; transform: translateX(-50%); }
+        .hamburger-btn { background: none; border: none; color: var(--brand-primary); cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 101; padding: 4px; }
+        .hamburger-btn .svg-icon { width: 24px; height: 24px; }
+
+        .side-menu-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 1000; opacity: 0; visibility: hidden; transition: opacity 0.3s ease; }
+        .side-menu-overlay.show { opacity: 1; visibility: visible; }
+        .side-menu { position: fixed; top: 0; left: -280px; width: 280px; height: 100%; background: var(--ios-bg); z-index: 1001; transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1); display: flex; flex-direction: column; box-shadow: 4px 0 16px rgba(0,0,0,0.1); }
+        .side-menu.show { transform: translateX(280px); }
+        .side-menu-header { padding: 14px 16px; background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: 0.5px solid var(--border-light); display: flex; justify-content: space-between; align-items: center; }
+        .side-menu-content { flex: 1; overflow-y: auto; padding: 16px; }
+
+        /* --- 🌟 iOS Update Modal (更新提示視窗) --- */
+        .update-modal {
+            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
+            width: 85%; max-width: 320px; border-radius: 14px; display: flex; flex-direction: column;
+            overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            transform: scale(0.95); transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+        .side-menu-overlay.show .update-modal { transform: scale(1); }
+        .update-modal-body { padding: 20px 16px 16px; text-align: center; }
+        .update-modal-title { font-size: 17px; font-weight: 600; margin-bottom: 6px; letter-spacing: -0.4px; }
+        .update-modal-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 14px; line-height: 1.4; }
+        .update-md-box {
+            background: rgba(0,0,0,0.04); border-radius: 8px; padding: 12px; font-size: 12px;
+            color: var(--text-primary); text-align: left; max-height: 160px; overflow-y: auto;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; white-space: pre-wrap; line-height: 1.5;
+            border: 0.5px solid var(--border-light);
+        }
+        .update-modal-actions { display: flex; border-top: 0.5px solid var(--border-light); }
+        .btn-update-action {
+            flex: 1; padding: 14px; background: none; border: none; font-size: 17px;
+            color: var(--brand-primary); cursor: pointer; transition: background 0.2s;
+        }
+        .btn-update-action:active { background: rgba(0,0,0,0.05); }
+        .btn-update-confirm { font-weight: 600; border-left: 0.5px solid var(--border-light); }
+
+        main { flex: 1; overflow-y: auto; padding: 16px; padding-bottom: calc(140px + env(safe-area-inset-bottom)); scroll-behavior: smooth; }
+        .tab-content { display: none; } .tab-content.active { display: block; }
+
+        .book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 20px; padding: 8px 4px; }
+        .book-card { display: flex; flex-direction: column; background: none; cursor: pointer; transition: transform 0.2s ease; }
+        .book-card:active { transform: scale(0.96); }
+        .book-cover-wrapper { position: relative; width: 100%; aspect-ratio: 3 / 4; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.05); border: 0.5px solid rgba(0, 0, 0, 0.08); display: flex; align-items: center; justify-content: center; transition: opacity 0.3s ease, filter 0.3s ease; }
+        .book-cover-wrapper::after { content: ""; position: absolute; top: 0; left: 0; bottom: 0; width: 6px; background: linear-gradient(to right, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0) 100%); z-index: 5; }
+        .book-cover-img { width: 100%; height: 100%; object-fit: cover; }
+        .book-info { margin-top: 10px; padding: 0 2px; }
+        .book-title { font-size: 14px; font-weight: 600; color: var(--text-primary); line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; height: 36.4px; }
+        .book-status-meta { font-size: 11px; color: var(--text-secondary); margin-top: 4px; font-weight: 500; }
+        .thumb-progress-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 122, 255, 0.8); color: #ffffff; font-size: 16px; font-weight: 700; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 10; display: none; }
+
+        .level-badge { position: absolute; top: 8px; left: 8px; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; color: #ffffff; z-index: 15; box-shadow: 0 2px 6px rgba(0,0,0,0.2); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); letter-spacing: 0.5px; }
+        .level-badge.beginner { background-color: rgba(52, 199, 89, 0.85); }
+        .level-badge.intermediate { background-color: rgba(0, 122, 255, 0.85); }
+        .level-badge.advanced { background-color: rgba(255, 59, 48, 0.85); }
+        .level-badge.default { background-color: rgba(142, 142, 147, 0.85); }
+
+        .quiz-bank-card { position: relative; }
+        .check-badge { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; background-color: var(--brand-primary); color: white; border-radius: 50%; display: none; align-items: center; justify-content: center; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.2); z-index: 20; }
+        .quiz-bank-card.selected .check-badge { display: flex; }
+        .quiz-bank-card:not(.selected) .book-cover-wrapper { opacity: 0.6; filter: grayscale(80%); }
+
+        .bottom-nav { position: fixed; bottom: calc(50px + env(safe-area-inset-bottom)); left: 0; width: 100%; background: linear-gradient(to top, rgba(242,242,247,0.95) 80%, rgba(242,242,247,0)); padding: 16px; z-index: 150; display: none; }
+        .ios-tab-bar { position: fixed; bottom: 0; left: 0; width: 100%; height: calc(50px + env(safe-area-inset-bottom)); background: rgba(249, 249, 249, 0.94); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-top: 0.5px solid var(--border-light); display: flex; z-index: 200; padding-bottom: env(safe-area-inset-bottom); }
+        .tab-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--brand-inactive); cursor: pointer; transition: color 0.15s ease; }
+        .tab-item.active { color: var(--brand-primary); }
+        .tab-icon { width: 22px; height: 22px; margin-bottom: 2px; fill: none; stroke: currentColor; stroke-width: 2.2; }
+        .tab-label { font-size: 10px; font-weight: 500; }
+
+        .ebook-window { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: #f2f2f7; z-index: 500; display: none; flex-direction: column; }
+        .reader-header { background: rgba(255, 255, 255, 0.88); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 0.5px solid var(--border-light); height: 54px; position: relative; }
+        #reader-progress-bar { position: absolute; bottom: -1px; left: 0; height: 2px; background: var(--brand-primary); width: 0%; transition: width 0.2s; z-index: 10; }
+        .btn-close { color: var(--brand-primary); font-size: 16px; font-weight: 500; background: none; border: none; cursor: pointer; }
+        .reader-title { font-size: 15px; font-weight: 600; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: -0.2px; text-align: center; }
+        .zoom-controls { display: flex; align-items: center; gap: 4px; background: #e5e5ea; padding: 2px; border-radius: 8px; }
+        .btn-zoom { background: none; border: none; color: var(--text-primary); font-size: 14px; font-weight: 600; padding: 4px 10px; border-radius: 6px; cursor: pointer; }
+        .btn-zoom:active { background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .zoom-text { font-size: 11px; color: var(--text-secondary); min-width: 36px; text-align: center; font-weight: 500; }
+        .reader-viewport { flex: 1; overflow: auto; display: flex; justify-content: center; align-items: flex-start; padding: 12px; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; perspective: 1200px; }
+        #pdf-canvas { background: #ffffff; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border-radius: 6px; display: block; transform-origin: center center; transition: transform 0.32s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.32s ease; backface-visibility: hidden; }
+        .reader-footer { background: rgba(255, 255, 255, 0.88); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); padding: 16px; padding-bottom: calc(12px + env(safe-area-inset-bottom)); border-top: 0.5px solid var(--border-light); display: flex; flex-direction: column; gap: 12px; align-items: center; }
+        .page-controls { display: flex; width: 100%; justify-content: space-between; align-items: center; }
+        .btn-page { width: 38px; height: 38px; border-radius: 50%; background: #e5e5ea; border: none; color: var(--text-primary); font-size: 15px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.2s; }
+        .btn-page:active { background: #d1d1d6; }
+        .ios-slider { -webkit-appearance: none; width: 100%; height: 4px; border-radius: 2px; background: #d1d1d6; outline: none; }
+        .ios-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 26px; height: 26px; border-radius: 50%; background: #ffffff; box-shadow: 0 2px 6px rgba(0,0,0,0.18); cursor: pointer; }
+
+        .section { display: none; opacity: 0; }
+        .section.active { display: block; opacity: 1; animation: iosSlideUp 0.35s cubic-bezier(0.25, 1, 0.5, 1) forwards; }
+        @keyframes iosSlideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        .app-card { background: var(--ios-surface); border-radius: 12px; padding: 16px; margin-bottom: 24px; }
+        .card-title { font-size: 15px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px; letter-spacing: -0.2px; }
+        .btn-action { width: 100%; padding: 14px 24px; border-radius: 12px; font-size: 17px; font-weight: 600; border: none; cursor: pointer; color: #ffffff; background-color: var(--brand-primary); transition: var(--transition-ios); display: flex; align-items: center; justify-content: center; gap: 6px; }
+        .btn-action:active { opacity: 0.7; transform: scale(0.99); }
+        .btn-secondary { background-color: var(--ios-surface); color: var(--brand-primary); }
+        .setting-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 0.5px solid var(--border-light); }
+        .setting-row:last-child { border-bottom: none; padding-bottom: 0; }
+        .input-number-wrapper { display: flex; align-items: center; background: #eeeeee; border-radius: 8px; padding: 6px 12px; flex-shrink: 0; margin-left: 16px; }
+        .input-number-wrapper input { width: 50px; border: none; background: transparent; text-align: center; font-size: 16px; font-weight: 500; outline: none; }
+        .option-container { display: flex; align-items: center; padding: 14px 16px; margin-bottom: 10px; border-radius: 10px; background-color: var(--ios-sub-bg); border: 0.5px solid var(--border-light); cursor: pointer; }
+        .option-container input[type="radio"] { display: none; }
+        .option-badge { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; border: 1px solid #c6c6c8; background: #ffffff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-right: 12px; }
+        .option-text { font-size: 15px; color: var(--text-primary); line-height: 1.4; }
+        .option-container.selected { border-color: var(--brand-primary); background-color: #f2f8ff; }
+        .option-container.selected .option-badge { background-color: var(--brand-primary); border-color: var(--brand-primary); color: #ffffff; }
+        .option-container.correct { border-color: var(--status-success) !important; background-color: var(--status-success-bg) !important; }
+        .option-container.correct .option-badge { background-color: var(--status-success) !important; border-color: var(--status-success) !important; color: #ffffff !important; }
+        .option-container.wrong { border-color: var(--status-error) !important; background-color: var(--status-error-bg) !important; }
+        .option-container.wrong .option-badge { background-color: var(--status-error) !important; border-color: var(--status-error) !important; color: #ffffff !important; }
+        .status-banner { margin-top: 14px; padding: 12px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; display: none; align-items: center; gap: 8px; }
+        .status-banner.show { display: flex; }
+        .status-banner.correct { background-color: var(--status-success-bg); color: var(--status-success); }
+        .status-banner.wrong { background-color: var(--status-error-bg); color: var(--status-error); }
+        .status-banner.unanswered { background-color: var(--status-warning-bg); color: var(--status-warning); }
+        .skeleton-card { padding: 16px; background: var(--ios-surface); border-radius: 12px; margin-bottom: 24px; }
+        .skeleton-line { background: linear-gradient(90deg, #e5e5ea 25%, #d1d1d6 50%, #e5e5ea 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite linear; border-radius: 4px; }
+        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+        .score-circle-view { text-align: center; padding: 24px 0; }
+        .score-num { font-size: 72px; font-weight: 700; color: var(--brand-primary); line-height: 1; letter-spacing: -2px; }
+        .score-lbl { font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 6px; }
+        .svg-icon { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+        .app-footer { margin-top: 48px; padding: 24px 0 8px; display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); text-align: center; }
+        .footer-status { display: flex; align-items: center; gap: 6px; font-weight: 500; color: var(--status-success); font-size: 11px; }
+        .status-dot { width: 7px; height: 7px; background-color: var(--status-success); border-radius: 50%; display: inline-block; }
+        /* 頂部閱讀計時條樣式 */
+		.quiz-timer-banner {
+			text-align: center;
+			padding: 12px;
+			background-color: var(--ios-surface);
+			color: var(--brand-primary);
+			font-weight: 600;
+			font-size: 16px;
+			border-bottom: 1px solid var(--ios-sub-bg);
+			position: sticky;
+			top: 0;
+			z-index: 999;
+			box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+			display: none; /* 預設隱藏，開始測驗才顯示 */
+			align-items: center;
+			justify-content: center;
+			gap: 6px;
+		}
+		/* 結果畫面中的時間文字樣式 */
+		.time-spent-container {
+			margin-top: 8px;
+			font-size: 15px;
+			color: var(--text-secondary);
+		}
+		/* 懸浮按鈕樣式 */
+		.fab-install {
+			position: fixed;
+			bottom: 50px;
+			right: 18px;
+			z-index: 900;
+			padding: 12px 20px;
+			background: rgba(255, 255, 255, 0.9); /* 半透明白 */
+			backdrop-filter: blur(10px);         /* 毛玻璃特效 */
+			-webkit-backdrop-filter: blur(10px);
+			border: 0.5px solid rgba(0,0,0,0.1);  /* 極細邊框 */
+			border-radius: 50px;                  /* 膠囊圓角 */
+			box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+			font-size: 14px;
+			font-weight: 500;
+			color: #007aff;                       /* iOS 藍色 */
+			cursor: pointer;
+			transition: transform 0.2s ease, opacity 0.3s ease;
+		}
+
+		.fab-install:active {
+			transform: scale(0.95);               /* 點擊時輕微縮小 */
+		}
+
+		/* 在 PWA 模式下隱藏 */
+		.hide-in-pwa {
+			display: none !important;
+		}
+
+		/* 遮罩背景：半透明黑色背景 */
+		.ios-modal-overlay {
+			display: none; 
+			position: fixed; 
+			top: 0; left: 0; 
+			width: 100%; height: 100%; 
+			z-index: 9999; 
+			background: rgba(0, 0, 0, 0.4); 
+			backdrop-filter: blur(5px); /* 背景模糊 */
+			align-items: center; 
+			justify-content: center;
+		}
+
+		/* 視窗本體：毛玻璃特效 + 陰影 */
+		.ios-modal-card {
+			background: rgba(255, 255, 255, 0.9); 
+			backdrop-filter: blur(20px);
+			-webkit-backdrop-filter: blur(20px);
+			padding: 24px; 
+			border-radius: 20px; 
+			width: 80%; 
+			max-width: 300px;
+			box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+			text-align: center;
+			border: 0.5px solid rgba(255,255,255,0.8);
+		}
+
+		/* 按鈕：iOS 藍色實心按鈕 */
+		.ios-modal-btn {
+			width: 100%; 
+			padding: 12px; 
+			background: #007aff; 
+			color: white; 
+			border: none; 
+			border-radius: 10px; 
+			font-size: 16px; 
+			font-weight: 600;
+			cursor: pointer;
+			transition: background 0.2s;
+		}
+
+		.ios-modal-btn:active {
+			background: #0062cc;
+		}
+		
+		/* =========================================
+           AI 測驗模組原生 CSS (iOS 風格)
+           ========================================= */
+        .ai-container { max-width: 672px; margin: 0 auto; padding: 16px 12px; }
+        .ai-header { text-align: center; margin-bottom: 32px; }
+        .ai-title { font-size: 24px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px; letter-spacing: -0.5px; }
+        .ai-subtitle { font-size: 14px; color: var(--text-secondary); }
+        
+        .ai-card { background: var(--ios-surface); border-radius: 24px; padding: 24px; margin-bottom: 24px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04), 0 10px 30px rgba(0, 0, 0, 0.03); }
+        
+        .ai-form-group { margin-bottom: 20px; }
+        .ai-label { display: block; font-size: 13px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; padding: 0 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .ai-input, .ai-select { width: 100%; padding: 14px 16px; background: var(--ios-bg); color: var(--text-primary); border-radius: 12px; border: none; outline: none; font-size: 15px; box-sizing: border-box; transition: all 0.2s; appearance: none; -webkit-appearance: none; }
+        .ai-input:focus, .ai-select:focus { background: var(--ios-surface); box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.3); }
+        .ai-hint-text { font-size: 13px; color: var(--text-secondary); margin-top: 8px; padding: 0 4px; line-height: 1.5; }
+        .ai-hint-text a { color: var(--brand-primary); text-decoration: none; margin-left: 4px; }
+        .ai-hint-text a:hover { text-decoration: underline; }
+        
+        .ai-flex-row { display: flex; gap: 16px; }
+        .ai-flex-1 { flex: 1; }
+        .ai-disabled-container { opacity: 0.4; transition: opacity 0.3s; }
+        .ai-input:disabled { background: #E5E5EA; color: var(--brand-inactive); cursor: not-allowed; }
+        
+        .ai-btn { width: 100%; padding: 16px; border-radius: 14px; font-size: 16px; font-weight: 600; border: none; cursor: pointer; transition: all 0.2s; box-sizing: border-box; }
+        .ai-btn-primary { background: var(--brand-primary); color: white; }
+        .ai-btn-primary:active { background: var(--brand-hover); transform: scale(0.98); }
+        .ai-btn-secondary { background: var(--ios-bg); color: var(--text-primary); }
+        .ai-btn-secondary:active { background: #E5E5EA; transform: scale(0.98); }
+        
+        /* 載入動畫 */
+        .ai-spinner-container { position: relative; width: 48px; height: 48px; margin: 0 auto 24px auto; }
+        .ai-spinner-bg { position: absolute; inset: 0; border-radius: 50%; border: 3px solid var(--ios-bg); }
+        .ai-spinner { position: absolute; inset: 0; border-radius: 50%; border: 3px solid var(--brand-primary); border-top-color: transparent; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        /* 測驗進度與選項 */
+        .ai-progress-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 12px; padding: 0 4px; }
+        .ai-progress-text { font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+        .ai-score-text { font-size: 14px; font-weight: 600; color: var(--brand-primary); }
+        .ai-progress-bar-bg { width: 100%; height: 6px; background: #E5E5EA; border-radius: 99px; margin-bottom: 24px; overflow: hidden; }
+        .ai-progress-bar-fill { height: 100%; background: var(--brand-primary); transition: width 0.5s ease-out; border-radius: 99px; }
+        
+        .ai-question-text { font-size: 18px; font-weight: 600; line-height: 1.5; color: var(--text-primary); margin-bottom: 32px; letter-spacing: -0.5px; }
+        
+        .ai-options-container { display: flex; flex-direction: column; gap: 12px; }
+        .ai-opt-btn { width: 100%; text-align: left; padding: 16px 20px; border-radius: 16px; border: 1px solid #E5E5EA; background: var(--ios-surface); font-size: 15px; font-weight: 500; color: var(--text-primary); display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: all 0.2s; outline: none; }
+        .ai-opt-btn:hover { border-color: #C7C7CC; }
+        .ai-opt-btn:active { background: var(--ios-bg); }
+        .ai-opt-correct { border-color: var(--status-success) !important; background: var(--status-success-bg) !important; }
+        .ai-opt-wrong { border-color: var(--status-error) !important; background: var(--status-error-bg) !important; }
+        .ai-opt-dimmed { opacity: 0.5; pointer-events: none; }
+        
+        /* 解析區塊 */
+        .ai-hint-btn { background: none; border: none; font-size: 14px; font-weight: 500; color: var(--brand-primary); cursor: pointer; padding: 0; margin-bottom: 12px; }
+        .ai-hint-btn:hover { color: var(--brand-hover); }
+        .ai-hint-box { background: var(--ios-surface); color: #3A3A3C; font-size: 14px; padding: 20px; border-radius: 16px; line-height: 1.5; box-shadow: 0 2px 10px rgba(0,0,0,0.04); margin-bottom: 16px; }
+        .ai-rationale-box { background: var(--ios-bg); border: 1px solid #E5E5EA; border-radius: 16px; padding: 24px; margin-top: 16px; }
+        .ai-rationale-title { font-weight: 600; font-size: 15px; margin-bottom: 12px; color: var(--text-primary); }
+        .ai-rationale-item { font-size: 14px; color: #3A3A3C; margin-bottom: 12px; line-height: 1.5; }
+        .ai-rationale-item:last-child { margin-bottom: 0; }
+        
+        /* 工具類別 */
+        .ai-hidden { display: none !important; }
+        .ai-fade-in { animation: aiFadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes aiFadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .ai-result-icon { width: 80px; height: 80px; background: var(--ios-bg); border-radius: 50%; display: flex; justify-content: center; align-items: center; margin: 0 auto 24px auto; color: var(--brand-primary); }
+        .ai-result-icon svg { width: 40px; height: 40px; }
+    </style>
+</head>
+<body>
+
+    <div id="quiz-timer-banner" class="quiz-timer-banner">
+    <span></span> 測驗計時中：<span id="quiz-timer-display">00:00</span>
+    </div>
+
+    <!-- 頂部導覽列 -->
+    <header>
+        <button class="hamburger-btn" onclick="toggleMenu()">
+            <svg class="svg-icon" viewBox="0 0 24 24">
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+        </button>
+        <div class="header-title" id="nav-title">智慧書架</div>
+        <div style="width: 28px;"></div>
+    </header>
+
+    <!-- 🍔 漢堡側邊選單 -->
+    <div id="side-menu-overlay" class="side-menu-overlay" onclick="toggleMenu()"></div>
+    <div id="side-menu" class="side-menu">
+        <div class="side-menu-header">
+            <span style="font-size: 17px; font-weight: 600;">系統資訊</span>
+            <button class="btn-close" onclick="toggleMenu()">✕</button>
+        </div>
+        <div class="side-menu-content">
+            <div class="app-card" style="margin-bottom: 16px; padding: 16px;">
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+                    <div style="width: 48px; height: 48px; background: var(--brand-primary); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white;">
+                        <img class="svg-icon" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='192' height='192' viewBox='0 0 24 24'><defs><linearGradient id='bg' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%23ffffff' stop-opacity='0.95'/><stop offset='100%' stop-color='%23cfe3ff' stop-opacity='0.55'/></linearGradient><linearGradient id='ink' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%23007aff'/><stop offset='100%' stop-color='%230055cc'/></linearGradient></defs><rect x='2' y='2' width='20' height='20' rx='5' fill='url(%23bg)' stroke='%23ffffff' stroke-opacity='0.7'/><rect x='6' y='6' width='6.5' height='12' rx='2' fill='%23ffffff' fill-opacity='0.55'/><path d='M12.5 7 L18 5.5 L18.5 6.5 L13 8 Z' fill='url(%23ink)' opacity='0.9'/><path d='M13 8 L18.5 6.5 L19 7.5 L13.5 9 Z' fill='%23007aff' opacity='0.25'/><path d='M6.8 8h4.8M6.8 10h4.8M6.8 12h3.8' stroke='%23007aff' stroke-width='1.1' stroke-linecap='round'/></svg>" style="width: 28px; height: 28px; display: inline-block; vertical-align: middle;">
+                    </div>
+                    <div>
+                        <div style="font-size: 16px; font-weight: 600;">AI閱讀測驗系統</div>
+                        <!--<div style="font-size: 13px; color: var(--text-secondary); margin-top: 2px;">版本 v1.1.2</div>-->
+                    </div>
+                </div>
+                <div class="setting-row" style="padding-bottom: 8px;">
+                    <div style="font-size: 14px; color: var(--text-secondary);">開發人員</div>
+                    <div style="font-size: 14px; font-weight: 500;">6792@gcloud.csu.edu.tw</div>				
+                </div>
+				<div class="setting-row" style="padding-bottom: 8px;">
+					<div style="font-size: 14px; color: var(--text-secondary);">核心版本</div>
+					<div style="font-size: 14px; font-weight: 500;">20260610</div>
+				</div>
+				<div class="setting-row" style="padding-bottom: 8px;">
+					<div style="font-size: 14px; color: var(--text-secondary);">系統版本</div>
+					<div style="font-size: 14px; font-weight: 500;">v1.1.2</div>
+				</div>
+				<div class="setting-row" style="padding-bottom: 8px;">
+					<div style="font-size: 14px; color: var(--text-secondary);">AI核心</div>
+					<div style="font-size: 14px; font-weight: 500;">v1.0 OF</div>
+				</div>
+            </div>
+			<button class="btn-action btn-secondary" onclick="openManual()" style="box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 0.5px solid var(--border-light);">
+                <svg class="svg-icon" viewBox="0 0 24 24" style="margin-right: 4px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                <span>查看操作手冊</span>
+            </button>
+        </div>
+    </div>
+	
+	<div id="manual-modal-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 9999; display: none; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.25s ease;">
+        <div style="background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); width: 85%; max-width: 320px; border-radius: 14px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.2); transform: scale(0.9); transition: transform 0.25s cubic-bezier(0.25, 1, 0.5, 1);">
+            <div style="padding: 20px 16px 16px; text-align: center;">
+                <div style="font-size: 17px; font-weight: 600; margin-bottom: 6px; letter-spacing: -0.4px;">📖 系統操作手冊</div>
+                <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 14px; line-height: 1.4;">歡迎使用本系統，以下為功能操作說明：</div>
+                <div id="manual-md-content" style="background: rgba(0,0,0,0.04); border-radius: 8px; padding: 12px; font-size: 13px; color: var(--text-primary); text-align: left; max-height: 240px; overflow-y: auto; font-family: inherit; white-space: pre-wrap; line-height: 1.6; border: 0.5px solid var(--border-light);">正在讀取操作手冊...</div>
+            </div>
+            <div style="display: flex; border-top: 0.5px solid var(--border-light);">
+                <button class="btn-update-action" onclick="closeManual()" style="font-weight: 600; width: 100%; flex: 1; padding: 14px; background: none; border: none; font-size: 17px; color: var(--brand-primary); cursor: pointer;">我知道了</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🌟 PWA 偵測新版本提示框 (Modal) -->
+    <div id="update-modal-overlay" class="side-menu-overlay" style="z-index: 9999; display: flex; align-items: center; justify-content: center; visibility: hidden; opacity: 0;">
+        <div class="update-modal">
+            <div class="update-modal-body">
+                <div class="update-modal-title">發現新版本！</div>
+                <div class="update-modal-desc">以下是最新的系統更新內容，建議您立即更新以獲取最佳體驗：</div>
+                <!-- 這裡將會讀取 update_log.md 的內容 -->
+                <div id="update-md-content" class="update-md-box">正在讀取更新日誌...</div>
+            </div>
+            <div class="update-modal-actions">
+                <button class="btn-update-action" onclick="dismissUpdate()">稍後</button>
+                <button class="btn-update-action btn-update-confirm" id="btn-confirm-update">立即更新</button>
+            </div>
+        </div>
+    </div>
+
+    <main id="main-content">
+        
+        <!-- Tab 1: 書架區 -->
+        <div id="tab-content-reading" class="tab-content active">
+            <div style="font-size: 13px; font-weight: 500; color: var(--text-secondary); text-transform: uppercase; margin: 0 4px 12px; letter-spacing: -0.1px;">我的智慧書架</div>
+            <div id="dynamic-book-grid" class="book-grid"></div>
+        </div>
+
+        <!-- Tab 2: 測驗區 -->
+        <div id="tab-content-quiz" class="tab-content">
+            <div id="stage-loading" class="section active">
+                <div class="skeleton-card"><div class="skeleton-line" style="width: 40%; height: 20px; margin-bottom: 12px;"></div><div class="skeleton-line" style="width: 100%; height: 44px; margin-bottom: 10px;"></div><div class="skeleton-line" style="width: 100%; height: 44px;"></div></div>
+            </div>
+
+            <div id="stage-config" class="section">
+                <div style="font-size: 13px; font-weight: 500; color: var(--text-secondary); text-transform: uppercase; margin: 0 4px 8px;">選擇測驗題庫</div>
+                <div class="book-grid" id="bank-list-container" style="margin-bottom: 16px;"></div>
+
+                <div style="font-size: 13px; font-weight: 500; color: var(--text-secondary); text-transform: uppercase; margin: 16px 4px 8px;">考卷設定</div>
+                <div class="app-card" style="padding-top: 4px; padding-bottom: 4px;">
+                    <div class="setting-row" style="border: none;">
+                        <div>
+                            <div class="card-title">隨機抽取數量</div>
+                        </div>
+                        <div class="input-number-wrapper">
+                            <input type="number" id="question-count" value="10" min="1" inputmode="numeric">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="stage-quiz" class="section">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 0 4px;">
+                    <span style="font-size: 12px; font-weight: 600; color: var(--brand-primary);">測驗進行中</span>
+                    <span style="font-size: 13px; font-weight: 500; color: var(--text-secondary);" id="quiz-header"></span>
+                </div>
+                <div id="quiz-container"></div>
+            </div>
+
+            <div id="stage-result" class="section">
+                <div class="app-card">
+                    <div class="score-circle-view"><div class="score-num" id="result-score">0</div><div class="score-lbl">測驗得分</div></div>
+                    <div style="text-align: center; font-size: 14px; color: var(--text-secondary); font-weight: 500;" id="result-details"></div>
+					<div class="time-spent-container">總花費時間：<span id="quiz-time-spent" style="font-weight: 600; color: var(--text-primary);">0 分 0 秒</span></div>
+                </div>
+                <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin: 24px 4px 12px;">答題複查與解析</div>
+            </div>
+        </div>
+		<!-- Tab 3: AI測驗區 -->
+		<div id="tab-content-ai-quiz" class="section tab-content">
+            <div class="ai-container">
+                <header class="ai-header">
+                    <h1 class="ai-title">AI 應用規劃師</h1>
+                    <p class="ai-subtitle">AI互動模擬測驗</p>
+                </header>
+
+                <div id="ai-setup-view" class="ai-card ai-fade-in">
+                    <h2 class="ai-title" style="font-size: 18px; margin-bottom: 20px;">測驗設定</h2>
+                    
+                    <div class="ai-form-group">
+                        <label class="ai-label">選擇 AI 引擎</label>
+                        <select id="ai-model-select" class="ai-select">
+                            <option value="gemini">Google Gemini</option>
+                            <option value="nvidia">GPT</option>
+                        </select>
+                    </div>
+
+                    <div class="ai-form-group">
+                        <label class="ai-label">API 金鑰</label>
+                        <input type="password" id="ai-api-key" class="ai-input" placeholder="請輸入 API Key">
+						<br><span style="color: var(--status-error); font-weight: 500; display: block; margin-top: 4px;">⚠️ 注意：Gemini免費 API Key 有次數限制，若發生錯誤請明天再試。</span>
+                        <p id="ai-api-key-hint" class="ai-hint-text">
+                            提示：請填寫 Gemini API Key。<a href="https://aistudio.google.com/api-keys" target="_blank">前往取得</a>
+						</p>
+					</div>
+
+                    <div class="ai-form-group">
+                        <label class="ai-label">題庫檔案</label>
+                        <select id="ai-file-path" class="ai-select">
+                            <option value="">載入清單中...</option>
+                        </select>
+                        <p class="ai-hint-text">伺服器自動同步。</p>
+                    </div>
+
+                    <div class="ai-flex-row ai-form-group">
+                        <div class="ai-flex-1">
+                            <label class="ai-label">總題數</label>
+                            <input type="number" id="ai-total-questions" class="ai-input" value="10" min="1" max="20">
+                        </div>
+                        <div class="ai-flex-1 ai-disabled-container" id="ai-batch-container">
+                            <label class="ai-label">批次數量</label>
+                            <input type="number" id="ai-batch-size" class="ai-input" value="2" min="1" max="5" disabled>
+                        </div>
+                    </div>
+					<br><span style="color: var(--status-error); font-weight: 500; display: block; margin-top: 4px;">⚠️ 注意：總題數若過多需要更長的時間。</span>
+
+                    <button id="ai-start-generate-btn" class="ai-btn ai-btn-primary" style="margin-top: 16px;">
+                        開始生成考題
+                    </button>
+                </div>
+
+                <div id="ai-loading-view" class="ai-card ai-fade-in ai-hidden" style="text-align: center; padding: 64px 24px;">
+                    <div class="ai-spinner-container">
+                        <div class="ai-spinner-bg"></div>
+                        <div class="ai-spinner"></div>
+                    </div>
+                    <h2 class="ai-title" style="font-size: 20px;">正在為您出題 請勿關閉頁面</h2>
+                    <p id="ai-loading-status" class="ai-subtitle" style="font-weight: 500;">系統準備中...</p>
+                </div>
+
+                <div id="ai-quiz-view" class="ai-fade-in ai-hidden">
+                    <div class="ai-progress-header">
+                        <span id="ai-progress-text" class="ai-progress-text">題目 1 / 10</span>
+                        <span id="ai-score-text" class="ai-score-text">0 分</span>
+                    </div>
+                    <div class="ai-progress-bar-bg">
+                        <div id="ai-progress-bar" class="ai-progress-bar-fill" style="width: 10%"></div>
+                    </div>
+
+                    <div class="ai-card">
+                        <h2 id="ai-question-text" class="ai-question-text">加載中...</h2>
+                        <div id="ai-options-container" class="ai-options-container"></div>
+                    </div>
+
+                    <div style="padding: 0 4px;">
+                        <button id="ai-hint-btn" class="ai-hint-btn">需要提示嗎？</button>
+                        <div id="ai-hint-box" class="ai-hint-box ai-hidden"></div>
+
+                        <div id="ai-rationale-box" class="ai-rationale-box ai-fade-in ai-hidden">
+                            <h3 class="ai-rationale-title">解析</h3>
+                            <div id="ai-rationale-content"></div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: flex-end; margin-top: 32px;">
+                        <button id="ai-next-btn" class="ai-btn ai-hidden" style="background: #1C1C1E; color: white; width: auto; padding: 14px 32px; border-radius: 99px;" onclick="aiNextQuestion()">
+                            下一題
+                        </button>
+                    </div>
+                </div>
+
+                <div id="ai-result-view" class="ai-card ai-fade-in ai-hidden" style="text-align: center; padding: 64px 24px;">
+                    <div class="ai-result-icon">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </div>
+                    <h2 class="ai-title">測驗完成</h2>
+                    <p id="ai-final-score" class="ai-score-text" style="font-size: 20px; margin-bottom: 40px;">最終得分：0 / 100 分</p>
+                    
+                    <div class="ai-flex-row">
+                        <button class="ai-btn ai-btn-secondary ai-flex-1" onclick="aiRestartQuiz()">重新挑戰</button>
+                        <button class="ai-btn ai-btn-primary ai-flex-1" onclick="aiRegenerateQuiz()">生成新考題</button>
+                    </div>
+                    <div style="margin-top: 32px;">
+                        <button class="ai-hint-btn" style="color: var(--brand-inactive);" onclick="aiGoToSetup()">返回首頁設定</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!--<footer class="app-footer">
+            <div class="footer-meta"><span>核心版本:20260609</span></div>
+        </footer>-->
+    </main>
+
+    <div class="bottom-nav" id="action-bar-config"><button class="btn-action" onclick="generateQuiz()"><span>開始測驗</span></button></div>
+    <div class="bottom-nav" id="action-bar-quiz"><button class="btn-action" onclick="submitQuiz()"><span>提交試卷並評分</span></button></div>
+    <div class="bottom-nav" id="action-bar-result"><button class="btn-action btn-secondary" onclick="location.reload()"><span>開始新測驗</span></button></div>
+
+    <nav class="ios-tab-bar">
+        <div class="tab-item active" id="tab-btn-reading" onclick="switchGlobalTab('reading')">
+            <svg class="tab-icon" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+            <span class="tab-label">智慧書架</span>
+        </div>
+        <div class="tab-item" id="tab-btn-quiz" onclick="switchGlobalTab('quiz')">
+            <svg class="tab-icon" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+            <span class="tab-label">模擬測驗</span>
+        </div>
+		<div class="tab-item" id="tab-btn-ai-quiz" onclick="switchGlobalTab('ai-quiz')">
+            <svg class="tab-icon" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7v5h-2v-5a5 5 0 0 0-5-5h-1v2.27a2 2 0 1 1-2 0V7H9a5 5 0 0 0-5 5v5H2v-5a7 7 0 0 1 7-7h1V5.73A2 2 0 0 1 12 2z"/>
+            </svg>
+            <span class="tab-label">AI測驗</span>
+        </div>
+    </nav>
+
+    <!-- PDF 檢視器 (支援雙指縮放) -->
+    <div id="ebook-reader-window" class="ebook-window">
+        <div class="reader-header">
+            <button class="btn-close" onclick="closeEbook()">✕ 關閉</button>
+            <div class="reader-title" id="reader-book-title">加載中...</div>
+            <div class="zoom-controls">
+                <button class="btn-zoom" onclick="adjustZoom(-0.25)">−</button>
+                <span class="zoom-text" id="zoom-indicator">100%</span>
+                <button class="btn-zoom" onclick="adjustZoom(0.25)">+</button>
+            </div>
+            <div id="reader-progress-bar"></div>
+        </div>
+        <div class="reader-viewport" id="viewport-area">
+            <canvas id="pdf-canvas"></canvas>
+        </div>
+        <div class="reader-footer">
+            <input type="range" class="ios-slider" id="reader-slider" min="1" max="1" value="1" oninput="handleSliderInput(this.value)">
+            <div class="page-controls">
+                <button class="btn-page" onclick="movePage(-1)">◀</button>
+                <span style="font-size: 13px; color: var(--text-secondary); font-weight: 500;" id="reader-page-indicator">1 / 1</span>
+                <button class="btn-page" onclick="movePage(1)">▶</button>
+            </div>
+        </div>
+    </div>
+	
+	<button id="fab-install-btn" class="fab-install" onclick="showInstallTutorial()">
+    安裝到手機
+</button>
+
+<div id="tutorial-modal" class="ios-modal-overlay" onclick="if(event.target==this) this.style.display='none'">
+    <div class="ios-modal-card">
+        <h3 id="tut-title" style="margin: 0 0 10px 0; font-size: 17px; font-weight: 600; text-align: center;">加入主畫面</h3>
+        <div id="tut-content" style="font-size: 14px; color: #3c3c43; line-height: 1.5; margin-bottom: 20px;"></div>
+        <button class="ios-modal-btn" onclick="document.getElementById('tutorial-modal').style.display='none'">我知道了</button>
+    </div>
+</div>
+
+<script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    let loadedBanks = {}; 
+    let currentQuiz = []; 
+    let activeGlobalTab = 'reading'; 
+    let activeQuizSection = 'stage-loading'; 
+
+    let currentPdfDoc = null;
+    let currentPdfPage = 1;
+    let currentPdfUrl = ''; 
+    let isRenderingPage = false;
+    let currentZoomScale = 1.0;
+
+    // --- 🍔 選單 ---
+    function toggleMenu() {
+        document.getElementById('side-menu').classList.toggle('show');
+        document.getElementById('side-menu-overlay').classList.toggle('show');
+    }
+
+    // --- ✌️ 雙指縮放 (Pinch-to-Zoom) 與滑動翻頁整合 ---
+    let touchStartX = 0; let touchEndX = 0;
+    let touchStartY = 0; let touchEndY = 0;
+    let initialPinchDistance = null;
+    let initialZoomScale = 1.0;
+    let currentVisualScale = 1.0;
+
+    function getPinchDistance(e) {
+        return Math.hypot(e.touches[0].screenX - e.touches[1].screenX, e.touches[0].screenY - e.touches[1].screenY);
+    }
+
+    function initTouchGestures() {
+        const viewportArea = document.getElementById('viewport-area');
+        const canvas = document.getElementById('pdf-canvas');
+        if (!viewportArea || !canvas) return;
+
+        viewportArea.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) {
+                touchStartX = e.touches[0].screenX; 
+                touchStartY = e.touches[0].screenY;
+                initialPinchDistance = null;
+            } else if (e.touches.length === 2) {
+                initialPinchDistance = getPinchDistance(e);
+                initialZoomScale = currentZoomScale;
+            }
+        }, { passive: false });
+
+        viewportArea.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 2 && initialPinchDistance) {
+                e.preventDefault(); 
+                const currentDistance = getPinchDistance(e);
+                currentVisualScale = currentDistance / initialPinchDistance;
+                
+                let tempScale = initialZoomScale * currentVisualScale;
+                if (tempScale < 0.5) tempScale = 0.5;
+                if (tempScale > 3.0) tempScale = 3.0;
+                
+                const visualTransformScale = tempScale / initialZoomScale;
+                canvas.style.transition = 'none'; 
+                canvas.style.transform = `scale(${visualTransformScale})`;
+            }
+        }, { passive: false });
+
+        viewportArea.addEventListener('touchend', (e) => {
+            if (initialPinchDistance !== null && e.touches.length < 2) {
+                initialPinchDistance = null;
+                let finalScale = initialZoomScale * currentVisualScale;
+                if (finalScale < 0.75) finalScale = 0.75;
+                if (finalScale > 2.5) finalScale = 2.5;
+                
+                canvas.style.transform = 'none';
+                canvas.style.transition = 'transform 0.32s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.32s ease';
+                
+                if (Math.abs(finalScale - currentZoomScale) > 0.05) {
+                    currentZoomScale = finalScale;
+                    document.getElementById('zoom-indicator').innerText = Math.round(currentZoomScale * 100) + "%";
+                    renderBookPage(currentPdfPage); 
+                }
+                currentVisualScale = 1.0;
+            } else if (e.changedTouches.length === 1 && initialPinchDistance === null) {
+                touchEndX = e.changedTouches[0].screenX; 
+                touchEndY = e.changedTouches[0].screenY;
+                handleSwipeGesture();
+            }
+        }, { passive: true });
+    }
+
+    function handleSwipeGesture() {
+        if (currentZoomScale > 1.0) return; 
+        const deltaX = touchEndX - touchStartX;
+        const deltaY = touchEndY - touchStartY;
+        if (Math.abs(deltaX) > 60 && Math.abs(deltaX) > Math.abs(deltaY)) {
+            if (deltaX < 0) movePage(1); else movePage(-1); 
+        }
+    }
+
+    function adjustZoom(amount) {
+        let targetZoom = currentZoomScale + amount;
+        if (targetZoom >= 0.75 && targetZoom <= 2.5) {
+            currentZoomScale = targetZoom;
+            document.getElementById('zoom-indicator').innerText = Math.round(currentZoomScale * 100) + "%";
+            renderBookPage(currentPdfPage); 
+        }
+    }
+
+    // === 閱讀測驗計時器核心邏輯 ===
+	let quizTimerInterval = null;
+	let quizStartTime = 0;
+	let quizElapsedSeconds = 0;
+
+	// 1. 啟動計時器（請在您「開始測驗」或「載入題目完成」的 function 最後面加上 startQuizTimer();）
+	function startQuizTimer() {
+		const timerBanner = document.getElementById('quiz-timer-banner');
+		const timerDisplay = document.getElementById('quiz-timer-display');
+		
+		quizElapsedSeconds = 0;
+		if (timerDisplay) timerDisplay.innerText = "00:00";
+		if (timerBanner) timerBanner.style.display = 'flex'; // 顯示計時條
+		
+		quizStartTime = Date.now();
+		if (quizTimerInterval) clearInterval(quizTimerInterval);
+		
+		quizTimerInterval = setInterval(() => {
+			const elapsedMs = Date.now() - quizStartTime;
+			quizElapsedSeconds = Math.floor(elapsedMs / 1000);
+			
+			const minutes = Math.floor(quizElapsedSeconds / 60).toString().padStart(2, '0');
+			const seconds = (quizElapsedSeconds % 60).toString().padStart(2, '0');
+			
+			if (timerDisplay) timerDisplay.innerText = `${minutes}:${seconds}`;
+		}, 1000);
+	}
+
+	// 2. 結束計時器並寫入結果 HTML（請在您「計算分數/顯示結果畫面」的 function 開頭加上 stopQuizTimer();）
+	function stopQuizTimer() {
+		if (quizTimerInterval) {
+			clearInterval(quizTimerInterval);
+			quizTimerInterval = null;
+		}
+		
+		// 隱藏頂部計時條
+		const timerBanner = document.getElementById('quiz-timer-banner');
+		if (timerBanner) timerBanner.style.display = 'none';
+		
+		// 計算總時間
+		const minutes = Math.floor(quizElapsedSeconds / 60);
+		const seconds = quizElapsedSeconds % 60;
+		const timeString = `${minutes} 分 ${seconds} 秒`;
+		
+		// 直接寫入第三步建立的 HTML 結果欄位中
+		const timeSpentDisplay = document.getElementById('quiz-time-spent');
+		if (timeSpentDisplay) {
+			timeSpentDisplay.innerText = timeString;
+		}
+	}
+
+
+    // 📚 動態讀取書單、渲染 iOS 書卡、並動態生成 PDF 封面縮圖
+	async function loadDynamicBookShelf() {
+		const gridContainer = document.getElementById('dynamic-book-grid'); // 確保與你 HTML 的容器 ID 一致
+		if (!gridContainer) return;
+
+		try {
+			// 1. 抓取雲端書單，加上時間戳防止快取
+			const res = await fetch('data/book_list.md?t=' + Date.now(), { cache: 'no-store' });
+			if (!res.ok) throw new Error("無法取得雲端書單");
+
+			const text = await res.text();
+			const lines = text.split('\n');
+			let htmlHTML = '';
+			let bookIndex = 1;
+			
+			// 🌟 用來暫存每一本書的資訊，等 HTML 渲染完後立刻用來跑 makePdfThumbnail
+			const booksToThumbnail = []; 
+
+			// 2. 逐行解析 book_list.md
+			lines.forEach(line => {
+				const trimmed = line.trim();
+				if (!trimmed || trimmed.startsWith('#')) return; // 略過空白與註解
+
+				const parts = trimmed.split('|');
+				if (parts.length < 3) return; // 確保有 [標籤|書名|檔名] 三個欄位
+
+				const levelBadge = parts[0].trim();  // 例如：初級
+				const bookTitle = parts[1].trim();   // 例如：第一科：人工智慧基礎概論
+				const fileName = parts[2].trim();    // 例如：XXX.pdf
+				const filePath = `data/${fileName}`;
+
+				// 自動根據文字判斷標籤顏色類別
+				let badgeClass = 'beginner';
+				if (levelBadge.includes('中')) badgeClass = 'intermediate';
+				if (levelBadge.includes('高')) badgeClass = 'advanced';
+
+				// 完美還原你原本精緻的 iOS 骨架
+				htmlHTML += `
+					<div class="book-card" onclick="openEbook('${filePath}', '${bookTitle}')">
+						<div class="book-cover-wrapper">
+							<div class="level-badge ${badgeClass}">${levelBadge}</div>
+							<img id="thumb-book-${bookIndex}" class="book-cover-img" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23007aff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><line x1='12' y1='2' x2='12' y2='6'></line><line x1='12' y1='18' x2='12' y2='22'></line><line x1='4.93' y1='4.93' x2='7.76' y2='7.76'></line><line x1='16.24' y1='16.24' x2='19.07' y2='19.07'></line><line x1='2' y1='12' x2='6' y2='12'></line><line x1='18' y1='12' x2='22' y2='12'></line><line x1='4.93' y1='19.07' x2='7.76' y2='16.24'></line><line x1='16.24' y1='7.76' x2='19.07' y2='4.93'></svg>">
+							<div id="thumb-prog-${bookIndex}" class="thumb-progress-overlay">0%</div>
+						</div>
+						<div class="book-info">
+							<div class="book-title">${bookTitle}</div>
+							<div class="book-status-text book-status-meta" data-pdfurl="${filePath}">狀態讀取中...</div>
+						</div>
+					</div>
+				`;
+
+				// 🌟 將這本書動態生成的 ID 記錄下來
+				booksToThumbnail.push({
+					filePath: filePath,
+					imgId: `thumb-book-${bookIndex}`,
+					progId: `thumb-prog-${bookIndex}`
+				});
+
+				bookIndex++;
+			});
+
+			// 3. 渲染到網頁上 (將 HTML 結構一次性塞入 DOM)
+			gridContainer.innerHTML = htmlHTML || '<div style="grid-column:1/-1; text-align:center; padding:20px; color:var(--text-muted);">目前書架上沒有書籍</div>';
+
+			// 🌟 4. 關鍵核心：當 HTML 確實出現在畫面上後，再依序動態觸發 makePdfThumbnail 渲染封面！
+			booksToThumbnail.forEach(book => {
+				if (typeof makePdfThumbnail === 'function') {
+					makePdfThumbnail(book.filePath, book.imgId, book.progId);
+				}
+			});
+
+			// 5. 完美連動原本的 localStorage 狀態刷新功能
+			if (typeof syncAllReadingProgress === 'function') {
+				syncAllReadingProgress();
+			}
+
+		} catch (err) {
+			console.error("動態書架加載失敗:", err);
+			gridContainer.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:20px; color:var(--status-error);">⚠️ 無法同步雲端書架，請檢查網路連線</div>';
+		}
+	}
+
+    // --- Tab 切換 ---
+	function switchGlobalTab(tabId) {
+		activeGlobalTab = tabId;
+		document.querySelectorAll('.tab-item').forEach(el => el.classList.remove('active'));
+		document.getElementById(`tab-btn-${tabId}`).classList.add('active');
+		document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+		document.getElementById(`tab-content-${tabId}`).classList.add('active');
+		
+		const navTitle = document.getElementById('nav-title');
+		document.querySelectorAll('.bottom-nav').forEach(el => el.style.display = 'none');
+		
+		// 💡 修正 BUG：明確判斷三個不同頁籤，不要只用 else
+		if (tabId === 'reading') {
+			navTitle.innerText = "智慧書架";
+			syncAllReadingProgress();
+		} else if (tabId === 'quiz') {
+			navTitle.innerText = "題庫測驗";
+			restoreQuizActionBar(); // 傳統測驗才需要叫出舊版的底部「開始測驗」按鈕
+		} else if (tabId === 'ai-quiz') {
+			navTitle.innerText = "AI測驗";
+			// AI 測驗模組自帶按鈕，所以這裡什麼都不做，保持舊底欄隱藏即可
+		}
+		
+		document.getElementById('main-content').scrollTo(0, 0);
+	}
+
+    function showSection(stageId) {
+        activeQuizSection = stageId;
+        if (activeGlobalTab === 'quiz') document.querySelectorAll('.bottom-nav').forEach(el => el.style.display = 'none');
+        document.querySelectorAll('#tab-content-quiz .section').forEach(el => el.classList.remove('active'));
+        document.getElementById(stageId).classList.add('active');
+        if (stageId === 'stage-result') document.getElementById('stage-quiz').classList.add('active'); 
+        if (activeGlobalTab === 'quiz') restoreQuizActionBar();
+        document.getElementById('main-content').scrollTo(0, 0);
+    }
+
+    function restoreQuizActionBar() {
+        if (activeQuizSection === 'stage-config') document.getElementById('action-bar-config').style.display = 'block';
+        if (activeQuizSection === 'stage-quiz') document.getElementById('action-bar-quiz').style.display = 'block';
+        if (activeQuizSection === 'stage-result') document.getElementById('action-bar-result').style.display = 'block';
+    }
+
+    // --- PDF ---
+    async function openEbook(pdfUrl, bookTitle) {
+        currentPdfUrl = pdfUrl; 
+        const readerWin = document.getElementById('ebook-reader-window');
+        const titleEl = document.getElementById('reader-book-title');
+        const progressBar = document.getElementById('reader-progress-bar');
+        
+        titleEl.innerText = "下載資料中 0%";
+        progressBar.style.width = '0%'; progressBar.style.opacity = '1';
+        readerWin.style.display = 'flex'; 
+
+        currentZoomScale = 1.0;
+        document.getElementById('zoom-indicator').innerText = "100%";
+        document.getElementById('pdf-canvas').style.transform = 'none';
+
+        try {
+            const loadingTask = pdfjsLib.getDocument(pdfUrl);
+            loadingTask.onProgress = function(progressData) {
+                if (progressData.total > 0) {
+                    const percent = Math.round((progressData.loaded / progressData.total) * 100);
+                    progressBar.style.width = percent + '%';
+                    if (percent >= 100) titleEl.innerText = bookTitle;
+                    else titleEl.innerText = `下載資料中 ${percent}%`;
+                }
+            };
+
+            currentPdfDoc = await loadingTask.promise;
+            titleEl.innerText = bookTitle; 
+            setTimeout(() => { progressBar.style.opacity = '0'; }, 300);
+            
+            localStorage.setItem('ebook_total_' + pdfUrl, currentPdfDoc.numPages);
+            const savedPage = localStorage.getItem('ebook_progress_' + pdfUrl);
+            if (savedPage) {
+                currentPdfPage = parseInt(savedPage);
+                if (currentPdfPage > currentPdfDoc.numPages || currentPdfPage < 1) currentPdfPage = 1;
+            } else { currentPdfPage = 1; }
+            
+            const slider = document.getElementById('reader-slider');
+            slider.max = currentPdfDoc.numPages; slider.value = currentPdfPage;
+            renderBookPage(currentPdfPage);
+        } catch (error) {
+            alert("電子書下載失敗，請檢查網路連線。"); closeEbook();
+        }
+    }
+
+    async function renderBookPage(pageNumber) {
+        if (!currentPdfDoc || isRenderingPage) return;
+        isRenderingPage = true;
+        try {
+            const page = await currentPdfDoc.getPage(pageNumber);
+            const canvas = document.getElementById('pdf-canvas');
+            const ctx = canvas.getContext('2d');
+            const viewportArea = document.getElementById('viewport-area');
+
+            const containerWidth = viewportArea.clientWidth - 24; 
+            const unscaledViewport = page.getViewport({ scale: 1 });
+            const dynamicScale = (containerWidth / unscaledViewport.width) * currentZoomScale;
+            const compiledViewport = page.getViewport({ scale: dynamicScale });
+            
+            const pixelRatio = window.devicePixelRatio || 1;
+            canvas.width = Math.floor(compiledViewport.width * pixelRatio);
+            canvas.height = Math.floor(compiledViewport.height * pixelRatio);
+            canvas.style.width = Math.floor(compiledViewport.width) + "px";
+            canvas.style.height = Math.floor(compiledViewport.height) + "px";
+            ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+
+            await page.render({ canvasContext: ctx, viewport: compiledViewport }).promise;
+
+            const pageIndicator = document.getElementById('reader-page-indicator');
+            if (pageIndicator) pageIndicator.innerText = `${pageNumber} / ${currentPdfDoc.numPages}`;
+            document.getElementById('reader-slider').value = pageNumber;
+
+            localStorage.setItem('ebook_progress_' + currentPdfUrl, pageNumber);
+            syncAllReadingProgress();
+        } catch (err) { console.error(err); } finally { isRenderingPage = false; }
+    }
+
+    async function movePage(direction) {
+        if (!currentPdfDoc || isRenderingPage) return;
+        let targetPage = currentPdfPage + direction;
+        if (targetPage >= 1 && targetPage <= currentPdfDoc.numPages) {
+            isRenderingPage = true; 
+            const canvas = document.getElementById('pdf-canvas');
+            if (direction > 0) canvas.style.transform = 'rotateY(-45deg) translateX(-30%) scale(0.9)';
+            else canvas.style.transform = 'rotateY(45deg) translateX(30%) scale(0.9)';
+            canvas.style.opacity = '0';
+            
+            setTimeout(async () => {
+                currentPdfPage = targetPage;
+                canvas.style.transition = 'none';
+                if (direction > 0) canvas.style.transform = 'rotateY(45deg) translateX(30%) scale(0.9)';
+                else canvas.style.transform = 'rotateY(-45deg) translateX(-30%) scale(0.9)';
+                
+                isRenderingPage = false; 
+                await renderBookPage(currentPdfPage);
+                
+                setTimeout(() => {
+                    canvas.style.transition = 'transform 0.35s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.35s ease';
+                    canvas.style.transform = 'rotateY(0deg) translateX(0) scale(1)';
+                    canvas.style.opacity = '1';
+                }, 30);
+                document.getElementById('viewport-area').scrollTo(0, 0);
+            }, 300);
+        }
+    }
+
+    function handleSliderInput(val) {
+        const pageNum = parseInt(val);
+        if (pageNum >= 1 && pageNum <= currentPdfDoc.numPages) {
+            currentPdfPage = pageNum; renderBookPage(currentPdfPage); 
+        }
+    }
+
+    function closeEbook() {
+        document.getElementById('ebook-reader-window').style.display = 'none';
+        currentPdfDoc = null; syncAllReadingProgress();
+    }
+
+    function syncAllReadingProgress() {
+        document.querySelectorAll('.book-status-text').forEach(el => {
+            const pdfUrl = el.getAttribute('data-pdfurl');
+            const savedPage = localStorage.getItem('ebook_progress_' + pdfUrl);
+            const totalPages = localStorage.getItem('ebook_total_' + pdfUrl);
+
+            if (savedPage && totalPages && parseInt(totalPages) > 0) {
+                const percent = Math.round((parseInt(savedPage) / parseInt(totalPages)) * 100);
+                if (percent === 100) el.innerHTML = `<span style="color: var(--status-success); font-weight: 600;">✓ 已閱讀完成</span>`;
+                else el.innerHTML = `<span style="color: var(--brand-primary); font-weight: 600;">已閱讀 ${percent}%</span>`;
+            } else { el.innerText = "尚未閱讀"; }
+        });
+    }
+
+    async function makePdfThumbnail(pdfUrl, imgElementId, progressId) {
+        try {
+            if (typeof pdfjsLib === 'undefined') return;
+            const progressOverlay = document.getElementById(progressId);
+            if (progressOverlay) progressOverlay.style.display = 'flex'; 
+
+            const loadingTask = pdfjsLib.getDocument(pdfUrl);
+            loadingTask.onProgress = function(progressData) {
+                if (progressData.total > 0 && progressOverlay) {
+                    const percent = Math.round((progressData.loaded / progressData.total) * 100);
+                    if (percent >= 100) progressOverlay.style.display = 'none';
+                    else progressOverlay.innerText = percent + "%";
+                }
+            };
+
+            const pdf = await loadingTask.promise;
+            localStorage.setItem('ebook_total_' + pdfUrl, pdf.numPages);
+            syncAllReadingProgress();
+
+            const page = await pdf.getPage(1);
+            const viewport = page.getViewport({ scale: 0.8 });
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height; canvas.width = viewport.width;
+            
+            await page.render({ canvasContext: context, viewport: viewport }).promise;
+            const imgElement = document.getElementById(imgElementId);
+            if (imgElement) imgElement.src = canvas.toDataURL();
+            if (progressOverlay) progressOverlay.style.display = 'none';
+        } catch (error) {
+            console.warn("縮圖生成未成功:", error);
+            const progressOverlay = document.getElementById(progressId);
+            if (progressOverlay) progressOverlay.style.display = 'none';
+        }
+    }
+
+    // --- 載入系統初始設定 ---
+    async function initSystem() {
+		// 1. 🌟 先動態加載書架（縮圖的渲染已經內建移入此函式中）
+		await loadDynamicBookShelf();
+		
+		// 2. 初始化手勢與同步全域進度
+		initTouchGestures(); 
+		syncAllReadingProgress();
+
+		// 📝 這裡繼續使用 bank_list.md 來載入「題庫清單」
+		try {
+			const mdResponse = await fetch('data/bank_list.md');
+			if (!mdResponse.ok) throw new Error("Manifest 讀取失敗。");
+			
+			const mdText = await mdResponse.text();
+			const lines = mdText.split('\n');
+			const bankFilesToLoad = [];
+			
+			lines.forEach(line => {
+				let cleanLine = line.trim().replace(/^[\-\*\+]\s+/, '');
+				if (cleanLine && !cleanLine.startsWith('#') && cleanLine.endsWith('.json')) {
+					bankFilesToLoad.push(cleanLine);
+				}
+			});
+
+			if (bankFilesToLoad.length === 0) throw new Error("無可用題庫來源。");
+			await loadAllBanks(bankFilesToLoad);
+
+		} catch (error) { console.error(error); }
+	}
+
+    async function loadAllBanks(bankFiles) {
+        let successCount = 0;
+        for (const filename of bankFiles) {
+            try {
+                const response = await fetch(`data/${filename}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    loadedBanks[filename.replace('.json', '')] = data;
+                    successCount++;
+                }
+            } catch (e) {}
+        }
+        if (successCount > 0) {
+            renderConfigUI();
+            setTimeout(() => showSection('stage-config'), 400);
+        }
+    }
+
+    function renderConfigUI() {
+        const container = document.getElementById('bank-list-container');
+        let totalQuestionsAvailable = 0;
+        container.innerHTML = '';
+        
+        for (const [displayName, questions] of Object.entries(loadedBanks)) {
+            const count = questions.length; 
+            totalQuestionsAvailable += count;
+
+            let levelText = "題庫"; let levelClass = "default";
+            if (displayName.includes("初級")) { levelText = "初級"; levelClass = "beginner"; }
+            else if (displayName.includes("中級")) { levelText = "中級"; levelClass = "intermediate"; }
+            else if (displayName.includes("高級")) { levelText = "高級"; levelClass = "advanced"; }
+            
+            const card = document.createElement('div');
+            card.className = 'book-card quiz-bank-card selected'; 
+            card.onclick = function() {
+                this.classList.toggle('selected');
+                const cb = this.querySelector('.bank-checkbox');
+                cb.checked = !cb.checked;
+                updateQuestionCountLimit(); 
+            };
+
+            card.innerHTML = `
+                <div class="book-cover-wrapper">
+                    <div class="level-badge ${levelClass}">${levelText}</div>
+                    <div class="check-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
+                    <div style="background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%); width:100%; height:100%; display:flex; align-items:center; justify-content:center; color: white; font-size: 24px; font-weight: bold; letter-spacing: 2px;">EXAM</div>
+                </div>
+                <div class="book-info">
+                    <div class="book-title">${displayName}</div>
+                    <div class="book-status-meta">內含 ${count} 題</div>
+                </div>
+                <input type="checkbox" class="bank-checkbox" value="${displayName}" checked style="display:none;">
+            `;
+            container.appendChild(card);
+        }
+        
+        const inputEl = document.getElementById('question-count');
+        inputEl.max = totalQuestionsAvailable; 
+        inputEl.value = totalQuestionsAvailable < 10 ? totalQuestionsAvailable : 10;
+    }
+
+    function updateQuestionCountLimit() {
+        const checkboxes = document.querySelectorAll('.bank-checkbox:checked');
+        let currentTotal = 0;
+        checkboxes.forEach(cb => { currentTotal += loadedBanks[cb.value].length; });
+        const inputEl = document.getElementById('question-count');
+        inputEl.max = currentTotal;
+        if (parseInt(inputEl.value) > currentTotal) inputEl.value = currentTotal;
+        if (currentTotal === 0) inputEl.value = 0; 
+        else if (parseInt(inputEl.value) === 0 && currentTotal > 0) inputEl.value = Math.min(10, currentTotal);
+    }
+
+    function generateQuiz() {
+        const checkboxes = document.querySelectorAll('.bank-checkbox:checked');
+        let questionPool = [];
+        checkboxes.forEach(cb => {
+            const name = cb.value;
+            questionPool = questionPool.concat(loadedBanks[name].map(q => ({...q, sourceBank: name})));
+        });
+        
+        if (questionPool.length === 0) return alert("請至少選擇一個題庫範圍。");
+        let count = parseInt(document.getElementById('question-count').value);
+        if (isNaN(count) || count < 1) count = 1; 
+        count = Math.min(count, questionPool.length);
+        
+        currentQuiz = [...questionPool].sort(() => Math.random() - 0.5).slice(0, count);
+        renderQuiz(); showSection('stage-quiz');
+    }
+
+    function selectOption(qIndex, key) {
+        document.querySelectorAll(`.opt-group-${qIndex}`).forEach(el => el.classList.remove('selected'));
+        document.getElementById(`label-${qIndex}-${key}`).classList.add('selected');
+        document.getElementById(`radio-${qIndex}-${key}`).checked = true;
+    }
+
+    function renderQuiz() {
+		const container = document.getElementById('quiz-container'); 
+		container.innerHTML = '';
+		document.getElementById('quiz-header').innerText = `共 ${currentQuiz.length} 題`;
+		
+		currentQuiz.forEach((q, index) => {
+			const card = document.createElement('div'); card.className = 'app-card';
+			let optionsHtml = '';
+			if (q.options && typeof q.options === 'object') {
+				for (const [key, value] of Object.entries(q.options)) {
+					optionsHtml += `<div class="option-container opt-group-${index}" id="label-${index}-${key}" onclick="selectOption(${index}, '${key}')"><input type="radio" id="radio-${index}-${key}" name="q${index}" value="${key}"><div class="option-badge">${key}</div><div class="option-text">${value}</div></div>`;
+				}
+			}
+			
+			// 🌟 核心修改：動態讀取 q.explanation，若無資料則顯示預設文字
+			const expText = q.explanation ? q.explanation : "本題暫無解析說明。";
+
+			card.innerHTML = `
+				<div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-secondary); font-weight: 600; margin-bottom: 10px; border-bottom: 0.5px solid var(--border-light); padding-bottom: 6px;">
+					<span>${q.category || q.sourceBank}</span>
+					<span style="color:var(--text-muted);">REF: ${q.id || 'N/A'}</span>
+				</div>
+				<div style="font-size: 16px; font-weight: 600; margin-bottom: 16px; line-height: 1.4;">
+					<span style="color: var(--brand-primary); margin-right: 4px;">${index + 1}.</span>${q.question}
+				</div>
+				<div>${optionsHtml}</div>
+				<div id="feedback-${index}" class="status-banner"></div>
+				
+				<div id="explanation-${index}" style="display: none; margin-top: 12px; padding: 12px; background-color: var(--ios-bg); border-radius: 8px; font-size: 13px; line-height: 1.5; color: var(--text-secondary); border-left: 3px solid var(--brand-inactive);">
+					<strong style="color: var(--text-primary); display: block; margin-bottom: 4px;">💡 題目解析：</strong>
+					<span>${expText}</span>
+				</div>
+			`;
+			container.appendChild(card);
+		});
+		startQuizTimer();
+	}
+
+    function submitQuiz() {
+		let score = 0;
+		currentQuiz.forEach((q, index) => {
+			const selected = document.querySelector(`input[name="q${index}"]:checked`);
+			const feedback = document.getElementById(`feedback-${index}`);
+			const explanationBox = document.getElementById(`explanation-${index}`); // 🌟 抓取解析區塊
+			const ansKey = q.answer;
+			const correctLabel = document.getElementById(`label-${index}-${ansKey}`);
+			if (correctLabel) correctLabel.classList.add('correct');
+			feedback.className = 'status-banner show';
+			
+			const svgCorrect = `<svg class="svg-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+			const svgWrong = `<svg class="svg-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>`;
+			const svgWarn = `<svg class="svg-icon" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
+
+			if (selected) {
+				if (selected.value === ansKey) {
+					score++; feedback.innerHTML = `${svgCorrect} <span>答題正確</span>`; feedback.classList.add('correct');
+				} else {
+					feedback.innerHTML = `${svgWrong} <span>作答錯誤，正確答案為 (${ansKey})</span>`; feedback.classList.add('wrong');
+					document.getElementById(`label-${index}-${selected.value}`).classList.add('wrong');
+				}
+			} else {
+				feedback.innerHTML = `${svgWarn} <span>未作答，正確答案為 (${ansKey})</span>`; feedback.classList.add('unanswered');
+			}
+			
+			// 🌟 核心修改：提交後不論對錯，皆秀出解析
+			if (explanationBox) {
+				explanationBox.style.display = 'block';
+			}
+
+			document.querySelectorAll(`.opt-group-${index}`).forEach(el => el.onclick = null);
+		});
+		
+		document.getElementById('result-score').innerText = Math.round((score / currentQuiz.length) * 100);
+		document.getElementById('result-details').innerText = `正確率：${score} / ${currentQuiz.length}`;
+		stopQuizTimer();
+		showSection('stage-result');
+	}
+	
+	// --- 📖 操作手冊開關與讀取邏輯 ---
+    async function openManual() {
+        // 1. 先把漢堡選單收起來
+        toggleMenu();
+
+        const overlay = document.getElementById('manual-modal-overlay');
+        const contentEl = document.getElementById('manual-md-content');
+        if (!overlay || !contentEl) return;
+
+        // 2. 彈出 iOS 視窗
+        overlay.style.display = 'flex';
+        overlay.style.visibility = 'visible';
+        setTimeout(() => {
+            overlay.style.opacity = '1';
+            if (overlay.firstElementChild) {
+                overlay.firstElementChild.style.transform = 'scale(1)';
+            }
+        }, 20);
+
+        contentEl.innerText = "正在讀取操作手冊...";
+
+        // 3. 異步讀取指定的 md 檔案 (假設路徑放在 data/manual.md)
+        try {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), 1500); // 1.5秒超時防禦
+
+            const res = await fetch('data/manual.md?t=' + Date.now(), { 
+                cache: 'no-store',
+                signal: controller.signal 
+            });
+            clearTimeout(id);
+
+            if (res.ok) {
+                const text = await res.text();
+                if (text && text.trim()) {
+                    contentEl.innerText = text; // 將 md 內容直接渲染進去
+                } else {
+                    contentEl.innerText = "手冊內容為空。";
+                }
+            } else {
+                contentEl.innerText = "找不到操作手冊檔案 (data/manual.md)。";
+            }
+        } catch (e) {
+            contentEl.innerText = "無法載入操作手冊，請檢查檔案是否存在。";
+        }
+    }
+
+    function closeManual() {
+        const overlay = document.getElementById('manual-modal-overlay');
+        if (!overlay) return;
+        
+        // 讓透明度變回 0，並稍微縮小視窗
+        overlay.style.opacity = '0';
+        if (overlay.firstElementChild) {
+            overlay.firstElementChild.style.transform = 'scale(0.9)';
+        }
+        
+        // 等待動畫結束後，真正隱藏它，把螢幕的點擊權限還給使用者
+        setTimeout(() => { 
+            overlay.style.display = 'none'; 
+            overlay.style.visibility = 'hidden'; 
+        }, 250);
+    }
+
+    // --- 🚀 PWA 依據 Service Worker 變動偵測新版本 ---
+    let newWorker;
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            const hasControllerOnLoad = !!navigator.serviceWorker.controller;
+
+            navigator.serviceWorker.register('sw.js').then(reg => {
+                console.log('Service Worker 註冊成功');
+
+                // 延遲 3 秒檢查更新，避開剛開機的效能尖峰
+                setTimeout(() => {
+                    try {
+                        reg.update().catch(err => console.log('SW 主動更新檢查跳過:', err));
+                    } catch(e) { console.error(e); }
+                }, 3000);
+
+                // 情況 A：一打開 App 就在排隊
+                if (reg.waiting) {
+                    if (hasControllerOnLoad) {
+                        window.newWorker = reg.waiting;
+                        setTimeout(() => { try { showUpdatePrompt(); } catch(e) {} }, 500);
+                    }
+                }
+
+                // 情況 B：使用到一半背景下載完新版
+                reg.addEventListener('updatefound', () => {
+                    const installingWorker = reg.installing;
+                    if (!installingWorker) return;
+
+                    installingWorker.addEventListener('statechange', () => {
+                        if (installingWorker.state === 'installed') {
+                            if (hasControllerOnLoad) {
+                                window.newWorker = installingWorker;
+                                try { showUpdatePrompt(); } catch(e) {}
+                            }
+                        }
+                    });
+                });
+            }).catch(err => {
+                console.error('Service Worker 註冊失敗:', err);
+            });
+
+            // 💡 核心修正：當控制權轉移時，絕對不要用 window.location.reload()
+            // 改用修改網址跳轉，徹底解決 iOS 核心凍結 bug
+            let refreshing = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (refreshing) return;
+                if (hasControllerOnLoad) {
+                    refreshing = true;
+                    setTimeout(() => {
+                        // 🛠️ 使用時間戳記強迫換頁導向，繞過重新整理的當機 Bug
+                        const currentHref = window.location.href.split('?')[0];
+                        window.location.href = currentHref + '?update=' + Date.now();
+                    }, 400);
+                }
+            });
+        });
+    }
+
+    // 🌟 觸發更新提示
+    // 🌟 觸發更新提示
+    async function showUpdatePrompt() {
+        try {
+            const overlay = document.getElementById('update-modal-overlay');
+            const contentEl = document.getElementById('update-md-content');
+            const btnConfirm = document.getElementById('btn-confirm-update');
+
+            if (!overlay || !contentEl || !btnConfirm) return;
+
+            // 1. 強制解除隱形封印，顯示視窗與動畫
+            overlay.style.display = 'flex';
+            overlay.style.visibility = 'visible';
+            setTimeout(() => {
+                overlay.style.opacity = '1';
+                const modalBox = overlay.querySelector('.update-modal');
+                if (modalBox) modalBox.style.transform = 'scale(1)';
+            }, 20);
+
+            // 2. 顯示讀取中提示
+            contentEl.textContent = "正在連線讀取更新日誌...";
+
+            // 3. 綁定立即更新按鈕事件
+            btnConfirm.onclick = () => {
+                try {
+                    // 安全防線：2 秒內沒反應，強行修改網址解鎖刷新
+                    setTimeout(() => {
+                        const currentHref = window.location.href.split('?')[0];
+                        window.location.href = currentHref + '?update=' + Date.now();
+                    }, 2000);
+
+                    if (window.newWorker && typeof window.newWorker.postMessage === 'function') {
+                        window.newWorker.postMessage('SKIP_WAITING');
+                    } else if (typeof newWorker !== 'undefined' && newWorker && typeof newWorker.postMessage === 'function') {
+                        newWorker.postMessage('SKIP_WAITING');
+                    } else {
+                        const currentHref = window.location.href.split('?')[0];
+                        window.location.href = currentHref + '?update=' + Date.now();
+                    }
+                } catch (btnErr) {
+                    const currentHref = window.location.href.split('?')[0];
+                    window.location.href = currentHref + '?update=' + Date.now();
+                }
+            };
+
+            // 4. 異步讀取 update_log.md
+            try {
+                const controller = new AbortController();
+                const id = setTimeout(() => controller.abort(), 1200); // 1.2秒超時防禦
+
+                const res = await fetch('data/update_log.md?t=' + Date.now(), { 
+                    cache: 'no-store',
+                    signal: controller.signal 
+                });
+                clearTimeout(id);
+
+                if (res.ok) {
+                    const text = await res.text();
+                    if (text && text.trim()) {
+                        contentEl.textContent = text; // 安全寫入純文字，防範特殊符號當機
+                        return; // 成功讀取就結束
+                    }
+                }
+            } catch (e) {
+                console.warn("找不到 update_log.md 或讀取超時，載入備用文字");
+            }
+
+            // 🌟 5. 終極防線：如果讀不到檔案，顯示預設更新文字，絕對不讓畫面空白！
+            contentEl.textContent = 
+`發現新版本！系統核心已升級。
+
+請點擊下方「立即更新」以獲取最佳體驗。`;
+
+        } catch (globalErr) {}
+    }
+
+    // 使用者點選稍後
+    function dismissUpdate() {
+        try {
+            const overlay = document.getElementById('update-modal-overlay');
+            if (overlay) {
+                overlay.classList.remove('show');
+                setTimeout(() => { 
+                    overlay.style.visibility = 'hidden'; 
+                    overlay.style.display = 'none'; 
+                }, 300);
+            }
+        } catch(e) {}
+    }
+    window.onload = initSystem;
+	
+	
+	function showInstallTutorial() {
+		const modal = document.getElementById('tutorial-modal');
+		const title = document.getElementById('tut-title');
+		const content = document.getElementById('tut-content');
+		
+		const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+		
+		modal.style.display = 'flex';
+		
+		if (isIOS) {
+			title.innerText = "iPhone 加入主畫面教學";
+			content.innerHTML = `
+				<ol>
+					<li>點擊瀏覽器下方的 <b>「分享」</b> 按鈕 (箭頭圖示)。</li>
+					<li>向下捲動並選擇 <b>「加入主畫面」</b>。</li>
+					<li>點擊右上角的 <b>「加入」</b> 即可。</li>
+				</ol>
+			`;
+		} else {
+			title.innerText = "Android 加入主畫面教學";
+			content.innerHTML = `
+				<ol>
+					<li>點擊瀏覽器右上角的 <b>「⋮」</b> 選單。</li>
+					<li>選擇 <b>「安裝應用程式」</b> 或 <b>「加到主畫面」</b>。</li>
+					<li>點擊 <b>「安裝」</b> 即可。</li>
+				</ol>
+			`;
+		}
+	}
+	
+	// ==========================================
+        //         AI 測驗模組邏輯 (原生 CSS 版)
+        // ==========================================
+        let aiQuizData = [];         
+        let aiCurrentIdx = 0;        
+        let aiScore = 0;             
+        let aiHasAnswered = false;   
+        let aiExtractedContext = ""; 
+
+        const aiSvgCheck = `<svg style="width: 20px; height: 20px; color: var(--status-success);" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path></svg>`;
+        const aiSvgCross = `<svg style="width: 20px; height: 20px; color: var(--status-error);" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>`;
+
+        // 讀取題庫清單
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const response = await fetch('./data/bank_list.md');
+                if (!response.ok) throw new Error('找不到 bank_list.md');
+                const text = await response.text();
+                const filePathSelect = document.getElementById('ai-file-path');
+                filePathSelect.innerHTML = ''; 
+                let hasFiles = false;
+
+                text.split('\n').forEach(line => {
+                    const cleanLine = line.trim().replace(/^[\-\*\+]\s+/, '');
+                    if (cleanLine && !cleanLine.startsWith('#') && cleanLine.endsWith('.json')) {
+                        const option = document.createElement('option');
+                        option.value = `./data/${cleanLine}`;
+                        option.textContent = cleanLine;
+                        filePathSelect.appendChild(option);
+                        hasFiles = true;
+                    }
+                });
+                if (!hasFiles) filePathSelect.innerHTML = '<option value="">找不到有效的清單</option>';
+            } catch (e) { console.warn('AI模組清單讀取失敗:', e); }
+        });
+
+        // 介面連動
+        document.getElementById('ai-model-select').addEventListener('change', (e) => {
+            const hint = document.getElementById('ai-api-key-hint');
+            const batchInput = document.getElementById('ai-batch-size');
+            const batchContainer = document.getElementById('ai-batch-container');
+
+            if (e.target.value === 'gemini') {
+                hint.innerHTML = '提示：請填寫 Gemini API Key。<a href="https://aistudio.google.com/api-keys" target="_blank">前往取得</a>';
+                batchInput.disabled = true;
+                batchContainer.style.opacity = '0.4';
+            } else {
+                hint.innerHTML = '提示：請填寫 Nvidia API Key，且須確認中繼站已開啟。<br><a href="https://build.nvidia.com/explore/discover" target="_blank">前往取得</a>';
+                batchInput.disabled = false;
+                batchContainer.style.opacity = '1';
+            }
+        });
+
+        // 開始生成
+        document.getElementById('ai-start-generate-btn').addEventListener('click', async () => {
+            const apiKey = document.getElementById('ai-api-key').value.trim();
+            const filePath = document.getElementById('ai-file-path').value.trim();
+            const totalNeeded = parseInt(document.getElementById('ai-total-questions').value, 10);
+            const batchSize = parseInt(document.getElementById('ai-batch-size').value, 10);
+            const selectedModel = document.getElementById('ai-model-select').value;
+            const loadingStatus = document.getElementById('ai-loading-status');
+
+            if (!apiKey) return alert("請填寫 API Key");
+            if (!filePath) return alert("請選擇檔案路徑");
+
+            document.getElementById('ai-setup-view').classList.add('ai-hidden');
+            document.getElementById('ai-loading-view').classList.remove('ai-hidden');
+            
+            try {
+                loadingStatus.innerText = `正在讀取本地檔案...`;
+                const response = await fetch(filePath);
+                const data = await response.json();
+                
+                let contextList = [];
+                const sampleData = Array.isArray(data) ? data.slice(0, 20) : (data.questions ? data.questions.slice(0, 20) : []);
+                sampleData.forEach(item => {
+                    const optStr = Object.entries(item.options || {}).map(([k, v]) => `${k}: ${v}`).join(', ');
+                    contextList.push(`【考點】: ${item.question || ""} (選項: ${optStr})`);
+                });
+                aiExtractedContext = contextList.join('\n');
+                aiQuizData = [];
+                
+                const systemPrompt = `你是一個專業的 AI 認證考試出題專家。請深入分析提供的【參考教材】，設計出全新多選題。回傳純 JSON 格式。結構：{ "questions": [ { "question": "...", "hint": "...", "answerOptions": [ { "text": "...", "rationale": "...", "isCorrect": false } ] } ] }`;
+
+                if (selectedModel === 'gemini') {
+                    loadingStatus.innerText = `AI 正在生成 ${totalNeeded} 題考題...`;
+                    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: `${systemPrompt}\n\n請出 ${totalNeeded} 題：\n${aiExtractedContext}` }] }],
+                            generationConfig: { responseMimeType: "application/json", temperature: 0.7 }
+                        })
+                    });
+                    if (!res.ok) throw new Error(`API 錯誤: ${res.status}`);
+                    const result = await res.json();
+                    aiQuizData = JSON.parse(result.candidates[0].content.parts[0].text).questions || [];
+                } else {
+                    let batchCount = 1;
+                    while (aiQuizData.length < totalNeeded) {
+                        loadingStatus.innerText = `正在生成第 ${batchCount} 批考題...`;
+                        const res = await fetch('http://127.0.0.1:8080/api/chat', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                            body: JSON.stringify({
+                                model: 'openai/gpt-oss-20b',
+                                messages: [ { role: 'system', content: systemPrompt }, { role: 'user', content: `請出 ${Math.min(batchSize, totalNeeded - aiQuizData.length)} 題：\n${aiExtractedContext}` } ],
+                                temperature: 0.7,
+                                response_format: { type: "json_object" }
+                            })
+                        });
+                        if (!res.ok) throw new Error(`API 錯誤: ${res.status}`);
+                        const result = await res.json();
+                        aiQuizData.push(...JSON.parse(result.choices[0].message.content).questions);
+                        batchCount++;
+                    }
+                }
+
+                aiQuizData = aiQuizData.slice(0, totalNeeded);
+                if (aiQuizData.length === 0) throw new Error("生成失敗。");
+                
+                document.getElementById('ai-loading-view').classList.add('ai-hidden');
+                document.getElementById('ai-quiz-view').classList.remove('ai-hidden');
+                aiRestartQuiz();
+
+            } catch (error) {
+                loadingStatus.innerHTML = `<span style="color: var(--status-error)">發生錯誤</span><br><span style="font-size:13px;">${error.message}</span>`;
+                setTimeout(() => {
+                    document.getElementById('ai-loading-view').classList.add('ai-hidden');
+                    document.getElementById('ai-setup-view').classList.remove('ai-hidden');
+                }, 3000);
+            }
+        });
+
+        // 顯示題目
+        function aiShowQuestion() {
+            aiHasAnswered = false;
+            document.getElementById('ai-next-btn').classList.add('ai-hidden');
+            document.getElementById('ai-hint-box').classList.add('ai-hidden');
+            document.getElementById('ai-rationale-box').classList.add('ai-hidden');
+            
+            const currentQ = aiQuizData[aiCurrentIdx];
+            document.getElementById('ai-progress-text').innerText = `題目 ${aiCurrentIdx + 1} / ${aiQuizData.length}`;
+            document.getElementById('ai-score-text').innerText = `${aiScore} 分`;
+            document.getElementById('ai-progress-bar').style.width = `${((aiCurrentIdx + 1) / aiQuizData.length) * 100}%`;
+            
+            document.getElementById('ai-question-text').innerText = `${aiCurrentIdx + 1}. ${currentQ.question}`;
+            document.getElementById('ai-hint-box').innerText = currentQ.hint;
+
+            const optsContainer = document.getElementById('ai-options-container');
+            optsContainer.innerHTML = '';
+            currentQ.answerOptions.forEach((option) => {
+                const btn = document.createElement('button');
+                btn.className = "ai-opt-btn";
+                btn.innerText = option.text;
+                btn.onclick = () => aiSelectOption(btn, option, currentQ.answerOptions);
+                optsContainer.appendChild(btn);
+            });
+        }
+
+        // 選擇邏輯
+        function aiSelectOption(selectedBtn, clickedOption, allOptions) {
+            if (aiHasAnswered) return;
+            aiHasAnswered = true;
+
+            const optsContainer = document.getElementById('ai-options-container');
+
+            if (clickedOption.isCorrect) {
+                aiScore += 10;
+                document.getElementById('ai-score-text').innerText = `${aiScore} 分`;
+                selectedBtn.classList.add('ai-opt-correct');
+                selectedBtn.innerHTML += `<span>${aiSvgCheck}</span>`;
+            } else {
+                selectedBtn.classList.add('ai-opt-wrong');
+                selectedBtn.innerHTML += `<span>${aiSvgCross}</span>`;
+                Array.from(optsContainer.children).forEach((btn, idx) => {
+                    if (allOptions[idx].isCorrect) {
+                        btn.classList.add('ai-opt-correct');
+                        btn.innerHTML += `<span>${aiSvgCheck}</span>`;
+                    }
+                });
+            }
+
+            Array.from(optsContainer.children).forEach(btn => {
+                if (btn !== selectedBtn && !btn.classList.contains('ai-opt-correct')) {
+                    btn.classList.add('ai-opt-dimmed');
+                }
+            });
+
+            const rationaleContent = document.getElementById('ai-rationale-content');
+            rationaleContent.innerHTML = '';
+            allOptions.forEach((opt) => {
+                const isCorrect = opt.isCorrect;
+                const prefix = isCorrect ? '正確解析' : `選項 ${opt.text.substring(0,3)}...`;
+                const color = isCorrect ? 'var(--status-success)' : 'var(--text-secondary)';
+                rationaleContent.innerHTML += `<div class="ai-rationale-item"><strong style="color:${color}">${prefix}：</strong> ${opt.rationale}</div>`;
+            });
+            
+            document.getElementById('ai-rationale-box').classList.remove('ai-hidden');
+            document.getElementById('ai-next-btn').classList.remove('ai-hidden');
+        }
+
+        function aiNextQuestion() {
+            if (aiCurrentIdx < aiQuizData.length - 1) {
+                aiCurrentIdx++;
+                aiShowQuestion();
+            } else {
+                document.getElementById('ai-quiz-view').classList.add('ai-hidden');
+                document.getElementById('ai-result-view').classList.remove('ai-hidden');
+                document.getElementById('ai-final-score').innerText = `最終得分：${aiScore} / ${aiQuizData.length * 10} 分`;
+            }
+        }
+
+        function aiRestartQuiz() {
+            aiScore = 0; aiCurrentIdx = 0;
+            document.getElementById('ai-result-view').classList.add('ai-hidden');
+            document.getElementById('ai-quiz-view').classList.remove('ai-hidden');
+            aiShowQuestion();
+        }
+
+        function aiRegenerateQuiz() {
+            document.getElementById('ai-result-view').classList.add('ai-hidden');
+            document.getElementById('ai-start-generate-btn').click();
+        }
+
+        function aiGoToSetup() {
+            document.getElementById('ai-result-view').classList.add('ai-hidden');
+            document.getElementById('ai-quiz-view').classList.add('ai-hidden');
+            document.getElementById('ai-setup-view').classList.remove('ai-hidden');
+        }
+
+        document.getElementById('ai-hint-btn').addEventListener('click', () => {
+            document.getElementById('ai-hint-box').classList.toggle('ai-hidden');
+        });
+	
+	
+		// 偵測是否已在 PWA 模式執行
+		const isPWA = window.matchMedia('(display-mode: standalone)').matches;
+		
+		// 如果是 PWA 模式，直接移除按鈕
+		if (isPWA) {
+			const fab = document.getElementById('fab-install-btn');
+			if (fab) fab.classList.add('hide-in-pwa');
+		}
+
+</script>
+</body>
+</html>

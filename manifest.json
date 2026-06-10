@@ -1,0 +1,22 @@
+{
+  "name": "AI應用規劃師題庫系統",
+  "short_name": "AI閱讀測驗系統",
+  "description": "具備高畫質 PDF 閱讀與智慧模擬測驗的系統",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#f2f2f7",
+  "theme_color": "#007aff",
+  "orientation": "portrait",
+  "icons": [
+    {
+  "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='192' height='192' viewBox='0 0 24 24'><defs><linearGradient id='bg' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%23ffffff' stop-opacity='0.95'/><stop offset='100%' stop-color='%23cfe3ff' stop-opacity='0.55'/></linearGradient><linearGradient id='ink' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%23007aff'/><stop offset='100%' stop-color='%230055cc'/></linearGradient></defs><rect x='2' y='2' width='20' height='20' rx='5' fill='url(%23bg)' stroke='%23ffffff' stroke-opacity='0.7'/><rect x='6' y='6' width='6.5' height='12' rx='2' fill='%23ffffff' fill-opacity='0.55'/><path d='M12.5 7 L18 5.5 L18.5 6.5 L13 8 Z' fill='url(%23ink)' opacity='0.9'/><path d='M13 8 L18.5 6.5 L19 7.5 L13.5 9 Z' fill='%23007aff' opacity='0.25'/><path d='M6.8 8h4.8M6.8 10h4.8M6.8 12h3.8' stroke='%23007aff' stroke-width='1.1' stroke-linecap='round'/></svg>",
+  "sizes": "192x192",
+  "type": "image/svg+xml"
+},
+    {
+  "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='512' height='512' viewBox='0 0 24 24'><defs><linearGradient id='bg' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%23ffffff' stop-opacity='0.98'/><stop offset='100%' stop-color='%23cfe3ff' stop-opacity='0.5'/></linearGradient><linearGradient id='ink' x1='0' y1='0' x2='1' y2='1'><stop offset='0%' stop-color='%23007aff'/><stop offset='100%' stop-color='%23004bb5'/></linearGradient></defs><rect x='2' y='2' width='20' height='20' rx='5' fill='url(%23bg)' stroke='%23ffffff' stroke-opacity='0.75'/><rect x='6' y='6' width='6.5' height='12' rx='2' fill='%23ffffff' fill-opacity='0.6'/><path d='M12.5 7 L18 5.5 L18.5 6.5 L13 8 Z' fill='url(%23ink)' opacity='0.95'/><path d='M13 8 L18.5 6.5 L19 7.5 L13.5 9 Z' fill='%23007aff' opacity='0.2'/><path d='M6.8 8h4.8M6.8 10h4.8M6.8 12h3.8' stroke='%23007aff' stroke-width='1.1' stroke-linecap='round'/></svg>",
+  "sizes": "512x512",
+  "type": "image/svg+xml"
+}
+  ]
+}
