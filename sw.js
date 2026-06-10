@@ -44,8 +44,18 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // 🌟 擴充：讓所有 .md 檔 (包含 update_log.md, manual.md, bank_list.md) 都永遠不被 SW 快取
-  // 這樣你只要改了這些文字檔，App 點開絕對是最新內容！
+  // 🌟 修正 1：如果是 POST 請求（例如 AI 出題 API），或是外部 AI 引擎的網域
+  // 絕對不要讓 Service Worker 介入，直接 return 退出，讓瀏覽器用原生方式處理！
+  // 這樣 API 的 CORS 錯誤或網路錯誤才能正常在前端網頁被 try...catch 抓到
+  if (
+    event.request.method !== 'GET' || 
+    url.hostname.includes('nvidia.com') || 
+    url.hostname.includes('googleapis.com')
+  ) {
+    return; // 直接退出，不呼叫 event.respondWith()
+  }
+
+  // 🌟 原本的擴充：讓所有 .md 檔都永遠不被 SW 快取
   if (url.pathname.endsWith('.md')) {
     event.respondWith(fetch(event.request));
     return;
@@ -63,13 +73,20 @@ self.addEventListener('fetch', event => {
         }
         return response;
       })
-      .catch(() => {
-        // 如果斷網，就從快取拿之前的資料 (離線可用)
-        return caches.match(event.request);
+      .catch(async () => {
+        // 🌟 修正 2：如果斷網，從快取拿之前的資料
+        const cachedResponse = await caches.match(event.request);
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+        
+        // 如果連快取中也沒有（例如：初次開啟網頁就斷網，或是讀取未快取的資源）
+        // 必須讓 Promise 拋出錯誤（reject），這樣瀏覽器才會回報正常的「網路中斷」
+        // 絕對不能回傳 undefined，否則會噴 TypeError 導致整個 Service Worker 壞掉
+        throw new Error('Network error and no cache available');
       })
   );
 });
-
 // 4. 接收前端訊息
 self.addEventListener('message', event => {
   if (event.data === 'SKIP_WAITING') {
